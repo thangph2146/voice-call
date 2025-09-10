@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useEffect, useState } from "react"
-import useWebRTCAudioSession from "@/hooks/use-webrtc"
+import useWebRTCAudioSession from "@/hooks/use-webrtc-gemini"
 import { tools } from "@/lib/tools"
 import { Welcome } from "@/components/welcome"
 import { VoiceSelector } from "@/components/voice-select"
@@ -13,6 +13,7 @@ import { ToolsEducation } from "@/components/tools-education"
 import { TextInput } from "@/components/text-input"
 import { motion } from "framer-motion"
 import { useToolsFunctions } from "@/hooks/use-tools"
+import LoggerPanel from "@/components/logger-panel"
 
 const App: React.FC = () => {
   // State for voice selection
@@ -95,6 +96,9 @@ const App: React.FC = () => {
           <ToolsEducation />
         </div>
       </motion.div>
+
+      {/* Logger Panel for debugging */}
+      <LoggerPanel />
     </main>
   )
 }

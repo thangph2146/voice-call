@@ -105,11 +105,9 @@ export const en = {
     },
     voice: {
         select: "Select a voice",
-        ash: "Ash - Gentle & Professional",
-        ballad: "Ballad - Warm & Engaging",
-        coral: "Coral - Clear & Friendly",
-        sage: "Sage - Authoritative & Calm",
-        verse: "Verse - Dynamic & Expressive"
+        loading: "Loading voices...",
+        noVoices: "No voices available",
+        tip: "Tip: Choose female Vietnamese voice for best experience"
     },
     language: "English",
     languagePrompt: "Speak and respond only in English. It is crucial that you maintain your responses in English. If the user speaks in other languages, you should still respond in English."
