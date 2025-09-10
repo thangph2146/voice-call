@@ -52,13 +52,11 @@ const App: React.FC = () => {
   return (
     <main className="h-full">
       <motion.div 
-        className="container flex flex-col items-center justify-center mx-auto max-w-3xl my-20 p-12 border rounded-lg shadow-xl"
+        className="container flex flex-col items-center justify-center mx-auto my-20 p-12 border rounded-lg shadow-xl"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
       >
-        <Welcome />
-        
         <motion.div 
           className="w-full max-w-md bg-card text-card-foreground rounded-xl border shadow-sm p-6 space-y-4"
           initial={{ opacity: 0, scale: 0.95 }}
@@ -92,9 +90,6 @@ const App: React.FC = () => {
         </motion.div>
         
         {status && <StatusDisplay status={status} />}
-        <div className="w-full flex flex-col items-center gap-4">
-          <ToolsEducation />
-        </div>
       </motion.div>
 
       {/* Logger Panel for debugging */}

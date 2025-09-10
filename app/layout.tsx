@@ -52,7 +52,7 @@ export default function RootLayout({
           <TranslationsProvider>
             <div className="relative flex min-h-dvh flex-col bg-background items-center">
               <Header />
-              <main className="h-[scale(100dvh-100px)] flex justify-center items-start">
+              <main className="h-[scale(100vh-100px)] flex justify-center items-start">
                 {children}
               </main>
             </div>
