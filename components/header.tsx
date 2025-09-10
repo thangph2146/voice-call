@@ -1,12 +1,9 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { MobileNav } from "./mobile-nav";
 import { Badge } from "./ui/badge";
-import { siteConfig } from "@/config/site";
-import { TwitterIcon, StarIcon } from "lucide-react";
 import { motion } from "framer-motion";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { useTranslations } from "@/components/translations-context";
@@ -53,42 +50,6 @@ export function Header() {
           className="flex gap-3 items-center justify-end ml-auto"
         >
           <LanguageSwitcher />
-          <Link
-            href={siteConfig.links.github}
-            target="_blank"
-            rel="noreferrer noopener"
-            aria-label="Give a star on GitHub"
-          >
-            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-              <Button
-                variant="outline"
-                size="sm"
-                className="flex gap-3 items-center max-md:h-9 max-md:w-9 max-md:px-0"
-                aria-label="Give a star on GitHub"
-              >
-                <span className="hidden md:block">{t('header.github')}</span>{" "}
-                <StarIcon className="motion-preset-spin motion-loop-twice"/>
-              </Button>
-            </motion.div>
-          </Link>
-          <Link
-            href={siteConfig.links.twitter}
-            target="_blank"
-            rel="noreferrer noopener"
-            aria-label="Follow on Twitter"
-          >
-            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-              <Button
-                variant="outline"
-                size="sm"
-                className="flex gap-3 items-center max-md:h-9 max-md:w-9 max-md:px-0"
-                aria-label="Follow on Twitter"
-              >
-                <span className="hidden md:block">{t('header.twitter')}</span>{" "}
-                <TwitterIcon />
-              </Button>
-            </motion.div>
-          </Link>
           <ThemeSwitcher />
         </motion.div>
       </div>
