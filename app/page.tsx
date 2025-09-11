@@ -15,11 +15,14 @@ import { useToolsFunctions } from "@/hooks/use-tools"
 import LoggerPanel from "@/components/logger-panel"
 
 const App: React.FC = () => {
-  // FLOW OVERVIEW (app.page)
-  // 1. Mount -> flow.step mount
-  // 2. Register tools -> each tool flow.event tool.register
-  // 3. User starts session (handled in hook scopes webrtc-gemini / webrtc-openai)
-  // 4. Conversation updates -> flow.event conversation.update (optional minimal)
+  // FLOW SCOPE: app.page
+  // ORDERED STEPS:
+  // 1. mount -> component mounted
+  // 2. register.tools -> expose tool functions to Gemini runtime
+  // 3. (external) user starts session via BroadcastButton -> flows in webrtc hooks
+  // 4. conversation.update -> conversation array length changed
+  // 5. user.submitText (handled in TextInput) -> sendTextMessage -> Gemini hook
+  // EVENTS (non-step): tool.register (per tool), token.usage (TokenUsageDisplay render), status.updated (status change), panel.logger.render
   // State for voice selection
   const [voice, setVoice] = useState("ash")
 
@@ -37,9 +40,7 @@ const App: React.FC = () => {
   // Get all tools functions
   const toolsFunctions = useToolsFunctions();
 
-  useEffect(() => {
-    flow.step('app.page', 1, 'mount')
-  }, [])
+  useEffect(() => { flow.step('app.page', 1, 'mount') }, [])
 
   useEffect(() => {
     flow.step('app.page', 2, 'register.tools')
@@ -58,11 +59,7 @@ const App: React.FC = () => {
     });
   }, [registerFunction, toolsFunctions])
 
-  useEffect(() => {
-    if (conversation.length) {
-      flow.event('app.page', 'conversation.update', { total: conversation.length })
-    }
-  }, [conversation.length])
+  useEffect(() => { if (conversation.length) flow.event('app.page', 'conversation.update', { total: conversation.length }) }, [conversation.length])
 
   return (
     <main className="h-full">
