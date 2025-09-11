@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { v4 as uuidv4 } from "uuid";
-import { Conversation } from "@/lib/conversations";
-import { useTranslations } from "@/components/translations-context";
-import { logger } from "@/lib/logger";
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { flow } from "@/lib/flow-tracker";
+import { useState, useRef, useEffect } from "react"; // React core state + refs
+import { v4 as uuidv4 } from "uuid"; // Unique IDs for conversation messages
+import { Conversation } from "@/lib/conversations"; // Domain model
+import { useTranslations } from "@/components/translations-context"; // i18n provider
+import { logger } from "@/lib/logger"; // Structured logging helper
+import { GoogleGenerativeAI } from "@google/generative-ai"; // Gemini provider SDK
+import { flow } from "@/lib/flow-tracker"; // Timeline instrumentation
 
 /**
  * ============================================================================
@@ -27,6 +27,20 @@ import { flow } from "@/lib/flow-tracker";
  * ----------------------------------------------------------------------------
  * Use flowStep(<n>, <label>) helper to push structured timeline entries.
  * Access timeline via returned flowTimeline array (read-only snapshot).
+ *
+ * LIBRARIES / APIS USED:
+ *  - React (hooks for state + lifecycle)
+ *  - uuid (v4) for message IDs
+ *  - @google/generative-ai (Gemini model.generateContent)
+ *  - Web Speech API (STT via SpeechRecognition, TTS via SpeechSynthesis)
+ *  - Web Audio API (AudioContext + AnalyserNode) volume meter every 100ms
+ *  - Browser MediaDevices.getUserMedia for microphone input stream
+ *  - Custom logger + flow tracker for diagnostics & step timeline
+ *
+ * PROVIDER SWAP PARITY:
+ *  The Dify hook keeps this exact structure; only step (5/6) differs where
+ *  generateContent() is replaced by an SSE streaming loop accumulating
+ *  incremental answer chunks before final TTS.
  * ============================================================================
  */
 
