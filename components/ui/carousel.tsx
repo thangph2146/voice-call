@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { flow } from "@/lib/flow-tracker"
 import useEmblaCarousel, {
   type UseEmblaCarouselType,
 } from "embla-carousel-react"
@@ -120,7 +121,8 @@ const Carousel = React.forwardRef<
       }
     }, [api, onSelect])
 
-    return (
+  if (flow.isEnabled()) flow.event("ui.carousel", "Carousel.render", { orientation });
+  return (
       <CarouselContext.Provider
         value={{
           carouselRef,
@@ -155,7 +157,7 @@ const CarouselContent = React.forwardRef<
   React.HTMLAttributes<HTMLDivElement>
 >(({ className, ...props }, ref) => {
   const { carouselRef, orientation } = useCarousel()
-
+  if (flow.isEnabled()) flow.event("ui.carousel", "CarouselContent.render", { orientation });
   return (
     <div ref={carouselRef} className="overflow-hidden">
       <div
@@ -177,7 +179,7 @@ const CarouselItem = React.forwardRef<
   React.HTMLAttributes<HTMLDivElement>
 >(({ className, ...props }, ref) => {
   const { orientation } = useCarousel()
-
+  if (flow.isEnabled()) flow.event("ui.carousel", "CarouselItem.render", { orientation });
   return (
     <div
       ref={ref}
@@ -199,7 +201,7 @@ const CarouselPrevious = React.forwardRef<
   React.ComponentProps<typeof Button>
 >(({ className, variant = "outline", size = "icon", ...props }, ref) => {
   const { orientation, scrollPrev, canScrollPrev } = useCarousel()
-
+  if (flow.isEnabled()) flow.event("ui.carousel", "PrevButton.render", { orientation });
   return (
     <Button
       ref={ref}
@@ -213,7 +215,7 @@ const CarouselPrevious = React.forwardRef<
         className
       )}
       disabled={!canScrollPrev}
-      onClick={scrollPrev}
+  onClick={() => { if (flow.isEnabled()) flow.event("ui.carousel", "PrevButton.click"); scrollPrev(); }}
       {...props}
     >
       <ArrowLeft className="h-4 w-4" />
@@ -228,7 +230,7 @@ const CarouselNext = React.forwardRef<
   React.ComponentProps<typeof Button>
 >(({ className, variant = "outline", size = "icon", ...props }, ref) => {
   const { orientation, scrollNext, canScrollNext } = useCarousel()
-
+  if (flow.isEnabled()) flow.event("ui.carousel", "NextButton.render", { orientation });
   return (
     <Button
       ref={ref}
@@ -242,7 +244,7 @@ const CarouselNext = React.forwardRef<
         className
       )}
       disabled={!canScrollNext}
-      onClick={scrollNext}
+  onClick={() => { if (flow.isEnabled()) flow.event("ui.carousel", "NextButton.click"); scrollNext(); }}
       {...props}
     >
       <ArrowRight className="h-4 w-4" />

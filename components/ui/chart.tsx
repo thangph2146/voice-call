@@ -1,6 +1,10 @@
 "use client"
 
+// FLOW SCOPE: ui.chart
+// EVENTS: ChartContainer.render, Tooltip.render, Legend.render
+
 import * as React from "react"
+import { flow } from "@/lib/flow-tracker"
 import * as RechartsPrimitive from "recharts"
 
 import { cn } from "@/lib/utils"
@@ -45,7 +49,7 @@ const ChartContainer = React.forwardRef<
 >(({ id, className, children, config, ...props }, ref) => {
   const uniqueId = React.useId()
   const chartId = `chart-${id || uniqueId.replace(/:/g, "")}`
-
+  if (flow.isEnabled()) flow.event("ui.chart", "ChartContainer.render", { id: chartId });
   return (
     <ChartContext.Provider value={{ config }}>
       <div
@@ -131,7 +135,8 @@ const ChartTooltipContent = React.forwardRef<
     },
     ref
   ) => {
-    const { config } = useChart()
+  const { config } = useChart()
+  if (flow.isEnabled()) flow.event("ui.chart", "Tooltip.render");
 
     const tooltipLabel = React.useMemo(() => {
       if (hideLabel || !payload?.length) {
@@ -271,6 +276,7 @@ const ChartLegendContent = React.forwardRef<
     ref
   ) => {
     const { config } = useChart()
+    if (flow.isEnabled()) flow.event("ui.chart", "Legend.render", { items: payload?.length || 0 });
 
     if (!payload?.length) {
       return null
