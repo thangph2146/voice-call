@@ -1,7 +1,8 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useTranslations } from "@/components/translations-context"
 import { Label } from "@/components/ui/label"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
+import { flow } from '@/lib/flow-tracker'
 
 interface VoiceSelectorProps {
   value: string
@@ -17,16 +18,28 @@ interface VoiceOption {
 }
 
 export function VoiceSelector({ value, onValueChange }: VoiceSelectorProps) {
+  // FLOW OVERVIEW (ui.voice-select)
+  // 1. Mount -> attempt immediate loadVoices()
+  // 2. System fires voiceschanged -> reload voices
+  // 3. If no value -> auto-select preferred Vietnamese female / fallback
+  // 4. User changes selection -> flow.event voice.change
   const { t } = useTranslations()
   const [voices, setVoices] = useState<VoiceOption[]>([])
   const [loading, setLoading] = useState(true)
 
+  const handleChange = useCallback((v: string) => {
+    flow.event('ui.voice-select', 'voice.change', { value: v })
+    onValueChange(v)
+  }, [onValueChange])
+
   useEffect(() => {
+    flow.step('ui.voice-select', 1, 'mount')
     const loadVoices = () => {
       const availableVoices = speechSynthesis.getVoices()
       if (availableVoices.length > 0) {
         setVoices(availableVoices)
         setLoading(false)
+        flow.event('ui.voice-select', 'voices.loaded', { count: availableVoices.length })
 
         // Set default voice if none selected
         if (!value && availableVoices.length > 0) {
@@ -37,7 +50,7 @@ export function VoiceSelector({ value, onValueChange }: VoiceSelectorProps) {
           ) || availableVoices.find(voice =>
             voice.name.toLowerCase().includes('female')
           ) || availableVoices[0]
-
+          flow.step('ui.voice-select', 2, 'default.select', { voice: vietnameseVoice?.name })
           onValueChange(vietnameseVoice.voiceURI)
         }
       }
@@ -73,7 +86,7 @@ export function VoiceSelector({ value, onValueChange }: VoiceSelectorProps) {
       <Label htmlFor="voiceSelect" className="text-sm font-medium">
         {t('voice.select')} ({voices.length} giọng có sẵn)
       </Label>
-      <Select value={value} onValueChange={onValueChange}>
+  <Select value={value} onValueChange={handleChange}>
         <SelectTrigger className="w-full">
           <SelectValue placeholder={loading ? "Đang tải giọng nói..." : "Chọn giọng nói"} />
         </SelectTrigger>

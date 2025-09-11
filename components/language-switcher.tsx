@@ -10,7 +10,10 @@ import {
 import { toast } from "sonner"
 import { Languages } from "lucide-react"
 import { useTranslations } from "@/components/translations-context"
+import { flow } from "@/lib/flow-tracker"
 
+// FLOW SCOPE: ui.languageSwitcher
+// ORDER: 1:render, 2:changeLocale
 export function LanguageSwitcher() {
   const { t, locale, setLocale } = useTranslations()
 
@@ -25,10 +28,13 @@ export function LanguageSwitcher() {
   const selectedLanguage = languages.find(lang => lang.code === locale)
 
   const onSelect = (value: string) => {
+    const prev = locale;
     setLocale(value);
+    flow.event("ui.languageSwitcher", "changeLocale", { from: prev, to: value });
     toast.success(`${t('status.language')} ${locale}`)
   }
 
+  flow.event("ui.languageSwitcher", "render", { locale });
   return (
     <Select value={locale} onValueChange={onSelect}>
       <SelectTrigger className="max-w-24">

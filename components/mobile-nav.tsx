@@ -14,14 +14,18 @@ import Link from "next/link";
 import { siteConfig } from "@/config/site";
 import { Badge } from "./ui/badge";
 import { useTranslations } from "@/components/translations-context"
+import { flow } from "@/lib/flow-tracker"
 
+// FLOW SCOPE: ui.mobileNav
+// ORDER: 1:render, 2:open, 3:close
 export function MobileNav() {
   const { t } = useTranslations();
   const [open, setOpen] = useState(false);
+  const toggle = (v: boolean) => { flow.event("ui.mobileNav", v ? "open" : "close"); setOpen(v); };
 
   return (
     <div className="md:hidden flex gap-2 w-full items-center overflow-auto">
-      <Dialog open={open} onOpenChange={setOpen}>
+  <Dialog open={open} onOpenChange={toggle}>
         <DialogTrigger asChild>
           <Button size="icon" variant="outline" aria-label="Open navigation">
             <MenuIcon />
@@ -32,7 +36,7 @@ export function MobileNav() {
             <DialogTitle className="w-full text-left text-2xl font-bold">
               <Link
                 href="/"
-                onClick={() => setOpen(false)}
+                onClick={() => toggle(false)}
                 className="flex items-center gap-3 text-2xl"
               >
                   {siteConfig.name}

@@ -7,9 +7,14 @@ import { Badge } from "./ui/badge";
 import { motion } from "framer-motion";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { useTranslations } from "@/components/translations-context";
+import { flow } from '@/lib/flow-tracker';
 
 export function Header() {
+  // FLOW OVERVIEW (ui.header)
+  // 1. Mount -> header.render
+  // 2. (Potential future) user interactions (nav clicks) -> events
   const { t } = useTranslations()
+  flow.event('ui.header', 'render')
   return (
     <motion.header
       initial={{ y: -20, opacity: 0 }}

@@ -1,21 +1,25 @@
 "use client"
 
 import React, { useEffect, useState } from "react"
+import { flow } from '@/lib/flow-tracker'
 import useWebRTCAudioSession from "@/hooks/use-webrtc-gemini"
 import { tools } from "@/lib/tools"
-import { Welcome } from "@/components/welcome"
 import { VoiceSelector } from "@/components/voice-select"
 import { BroadcastButton } from "@/components/broadcast-button"
 import { StatusDisplay } from "@/components/status"
 import { TokenUsageDisplay } from "@/components/token-usage"
 import { MessageControls } from "@/components/message-controls"
-import { ToolsEducation } from "@/components/tools-education"
 import { TextInput } from "@/components/text-input"
 import { motion } from "framer-motion"
 import { useToolsFunctions } from "@/hooks/use-tools"
 import LoggerPanel from "@/components/logger-panel"
 
 const App: React.FC = () => {
+  // FLOW OVERVIEW (app.page)
+  // 1. Mount -> flow.step mount
+  // 2. Register tools -> each tool flow.event tool.register
+  // 3. User starts session (handled in hook scopes webrtc-gemini / webrtc-openai)
+  // 4. Conversation updates -> flow.event conversation.update (optional minimal)
   // State for voice selection
   const [voice, setVoice] = useState("ash")
 
@@ -34,7 +38,11 @@ const App: React.FC = () => {
   const toolsFunctions = useToolsFunctions();
 
   useEffect(() => {
-    // Register all functions by iterating over the object
+    flow.step('app.page', 1, 'mount')
+  }, [])
+
+  useEffect(() => {
+    flow.step('app.page', 2, 'register.tools')
     Object.entries(toolsFunctions).forEach(([name, func]) => {
       const functionNames: Record<string, string> = {
         timeFunction: 'getCurrentTime',
@@ -46,13 +54,20 @@ const App: React.FC = () => {
       };
       
       registerFunction(functionNames[name], func);
+      flow.event('app.page', 'tool.register', { exposedAs: functionNames[name] })
     });
   }, [registerFunction, toolsFunctions])
+
+  useEffect(() => {
+    if (conversation.length) {
+      flow.event('app.page', 'conversation.update', { total: conversation.length })
+    }
+  }, [conversation.length])
 
   return (
     <main className="h-full">
       <motion.div 
-        className="container flex flex-col items-center justify-center mx-auto my-20 p-12 border rounded-lg shadow-xl"
+        className="container flex flex-col items-center justify-center mx-auto my-20 shadow-xl"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}

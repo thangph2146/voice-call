@@ -20,10 +20,13 @@ import { Message as MessageType } from "@/types"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Terminal } from "lucide-react"
 import { useTranslations } from "@/components/translations-context"
+import { flow } from "@/lib/flow-tracker"
 
+// FLOW SCOPE: ui.messageControls.filter
+// ORDER: 1:render, 2:changeType, 3:search, 4:log
 function FilterControls({
   typeFilter,
   setTypeFilter,
@@ -41,9 +44,10 @@ function FilterControls({
 }) {
   const { t } = useTranslations();
 
+  flow.event("ui.messageControls.filter", "render", { types: messageTypes.length, count: messages.length });
   return (
     <div className="flex gap-4 mb-4">
-      <Select value={typeFilter} onValueChange={setTypeFilter}>
+  <Select value={typeFilter} onValueChange={(v) => { flow.event("ui.messageControls.filter", "changeType", { from: typeFilter, to: v }); setTypeFilter(v); }}>
         <SelectTrigger className="w-[200px]">
           <SelectValue placeholder="Filter by type" />
         </SelectTrigger>
@@ -58,10 +62,10 @@ function FilterControls({
       <Input
         placeholder={t('messageControls.search')}
         value={searchQuery}
-        onChange={(e) => setSearchQuery(e.target.value)}
+        onChange={(e) => { const v = e.target.value; flow.event("ui.messageControls.filter", "search", { q: v }); setSearchQuery(v); }}
         className="flex-1"
       />
-      <Button variant="outline" onClick={() => console.log(messages)}>
+  <Button variant="outline" onClick={() => { flow.event("ui.messageControls.filter", "logClick", { count: messages.length }); console.log(messages); }}>
         <Terminal />
         {t('messageControls.log')}
       </Button>
@@ -69,10 +73,13 @@ function FilterControls({
   )
 }
 
+// FLOW SCOPE: ui.messageControls
+// ORDER: 1:render, 2:openDialog, 3:filterApplied
 export function MessageControls({ conversation, msgs }: { conversation: Conversation[], msgs: MessageType[] }) {
   const { t } = useTranslations();
   const [typeFilter, setTypeFilter] = useState<string>("all")
   const [searchQuery, setSearchQuery] = useState("")
+  useEffect(() => { flow.event("ui.messageControls", "render", { conversation: conversation.length, msgs: msgs.length }); }, [conversation.length, msgs.length]);
   
   if (conversation.length === 0) return null
 
@@ -87,6 +94,7 @@ export function MessageControls({ conversation, msgs }: { conversation: Conversa
     return matchesType && matchesSearch
   })
 
+  flow.event("ui.messageControls", "filterApplied", { filter: typeFilter, q: searchQuery, result: filteredMsgs.length });
   return (
     <div className="space-y-2">
       <div className="flex justify-between items-center">

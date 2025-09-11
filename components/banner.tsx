@@ -1,9 +1,13 @@
 "use client"
 
 import { useTranslations } from "@/components/translations-context"
+import { flow } from "@/lib/flow-tracker"
 
+// FLOW SCOPE: ui.banner
+// ORDER (coarse): 1:mount/useTranslations, 2:render
 export const Banner = () => {
   const { t } = useTranslations();
+  flow.event("ui.banner", "render");
 
   return (
     <div className="w-full bg-gradient-to-r from-gray-900 to-gray-700 py-2">

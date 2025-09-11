@@ -1,4 +1,7 @@
+// FLOW SCOPE: ui.button
+// PURPOSE: Reusable button variants. We only emit a render event once per mount for debug.
 import * as React from "react"
+import { flow } from "@/lib/flow-tracker";
 import { Slot } from "@radix-ui/react-slot"
 import { cva, type VariantProps } from "class-variance-authority"
 
@@ -42,6 +45,8 @@ export interface ButtonProps
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant, size, asChild = false, ...props }, ref) => {
     const Comp = asChild ? Slot : "button"
+    // FLOW: event(render) – fires once when component function executes.
+  if (flow?.isEnabled?.()) flow.event("ui.button", "render");
     return (
       <Comp
         className={cn(buttonVariants({ variant, size, className }))}

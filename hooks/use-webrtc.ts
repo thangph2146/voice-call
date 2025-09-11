@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { Conversation } from "@/lib/conversations";
+import { flow } from "@/lib/flow-tracker";
 import { useTranslations } from "@/components/translations-context";
 
 export interface Tool {
@@ -27,6 +28,7 @@ interface UseWebRTCAudioSessionReturn {
   currentVolume: number;
   conversation: Conversation[];
   sendTextMessage: (text: string) => void;
+  flowTimeline?: { step?: number; label: string; ts: string }[];
 }
 
 /**
@@ -34,7 +36,7 @@ interface UseWebRTCAudioSessionReturn {
  */
 export default function useWebRTCAudioSession(
   voice: string,
-  tools?: Tool[],
+  tools?: Tool[]
 ): UseWebRTCAudioSessionReturn {
   const { t, locale } = useTranslations();
   // Connection/session states
@@ -153,7 +155,7 @@ export default function useWebRTCAudioSession(
           return { ...msg, ...partial };
         }
         return msg;
-      }),
+      })
     );
   }
 
@@ -170,13 +172,14 @@ export default function useWebRTCAudioSession(
   async function handleDataChannelMessage(event: MessageEvent) {
     try {
       const msg = JSON.parse(event.data);
-      // console.log("Incoming dataChannel message:", msg);
+      flow.event("webrtc-openai", "dataChannel.message", { type: msg.type });
 
       switch (msg.type) {
         /**
          * User speech started
          */
         case "input_audio_buffer.speech_started": {
+          flow.step("webrtc-openai", 4, "speech_started");
           getOrCreateEphemeralUserId();
           updateEphemeralUserMessage({ status: "speaking" });
           break;
@@ -186,6 +189,7 @@ export default function useWebRTCAudioSession(
          * User speech stopped
          */
         case "input_audio_buffer.speech_stopped": {
+          flow.event("webrtc-openai", "speech_stopped");
           // optional: you could set "stopped" or just keep "speaking"
           updateEphemeralUserMessage({ status: "speaking" });
           break;
@@ -195,6 +199,7 @@ export default function useWebRTCAudioSession(
          * Audio buffer committed => "Processing speech..."
          */
         case "input_audio_buffer.committed": {
+          flow.step("webrtc-openai", 5, "audio_buffer.committed");
           updateEphemeralUserMessage({
             text: "Processing speech...",
             status: "processing",
@@ -206,6 +211,7 @@ export default function useWebRTCAudioSession(
          * Partial user transcription
          */
         case "conversation.item.input_audio_transcription": {
+          flow.event("webrtc-openai", "partial_transcript");
           const partialText =
             msg.transcript ?? msg.text ?? "User is speaking...";
           updateEphemeralUserMessage({
@@ -220,6 +226,7 @@ export default function useWebRTCAudioSession(
          * Final user transcription
          */
         case "conversation.item.input_audio_transcription.completed": {
+          flow.step("webrtc-openai", 6, "final_transcript");
           // console.log("Final user transcription:", msg.transcript);
           updateEphemeralUserMessage({
             text: msg.transcript || "",
@@ -234,6 +241,7 @@ export default function useWebRTCAudioSession(
          * Streaming AI transcripts (assistant partial)
          */
         case "response.audio_transcript.delta": {
+          flow.event("webrtc-openai", "assistant.delta");
           const newMessage: Conversation = {
             id: uuidv4(), // generate a fresh ID for each assistant partial
             role: "assistant",
@@ -264,6 +272,7 @@ export default function useWebRTCAudioSession(
          * Mark the last assistant message as final
          */
         case "response.audio_transcript.done": {
+          flow.step("webrtc-openai", 7, "assistant.response.final");
           setConversation((prev) => {
             if (prev.length === 0) return prev;
             const updated = [...prev];
@@ -277,6 +286,7 @@ export default function useWebRTCAudioSession(
          * AI calls a function (tool)
          */
         case "response.function_call_arguments.done": {
+          flow.step("webrtc-openai", 8, "function_call");
           const fn = functionRegistry.current[msg.name];
           if (fn) {
             const args = JSON.parse(msg.arguments);
@@ -320,6 +330,7 @@ export default function useWebRTCAudioSession(
    */
   async function getEphemeralToken() {
     try {
+      flow.step("webrtc-openai", 2, "fetch_ephemeral_token");
       const response = await fetch("/api/session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -328,9 +339,12 @@ export default function useWebRTCAudioSession(
         throw new Error(`Failed to get ephemeral token: ${response.status}`);
       }
       const data = await response.json();
+      flow.event("webrtc-openai", "token.received");
       return data.client_secret.value;
     } catch (err) {
       console.error("getEphemeralToken error:", err);
+      const detail = typeof err === 'object' && err !== null ? { message: (err as Error).message } : { message: String(err) };
+      flow.event("webrtc-openai", "token.error", detail);
       throw err;
     }
   }
@@ -385,10 +399,12 @@ export default function useWebRTCAudioSession(
    */
   async function startSession() {
     try {
+      flow.step("webrtc-openai", 1, "startSession");
       setStatus("Requesting microphone access...");
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       audioStreamRef.current = stream;
       setupAudioVisualization(stream);
+      flow.event("webrtc-openai", "mic.ready");
 
       setStatus("Fetching ephemeral token...");
       const ephemeralToken = await getEphemeralToken();
@@ -396,6 +412,7 @@ export default function useWebRTCAudioSession(
       setStatus("Establishing connection...");
       const pc = new RTCPeerConnection();
       peerConnectionRef.current = pc;
+      flow.step("webrtc-openai", 3, "peerConnection.created");
 
       // Hidden <audio> element for inbound assistant TTS
       const audioEl = document.createElement("audio");
@@ -403,6 +420,7 @@ export default function useWebRTCAudioSession(
 
       // Inbound track => assistant's TTS
       pc.ontrack = (event) => {
+        flow.event("webrtc-openai", "ontrack");
         audioEl.srcObject = event.streams[0];
 
         // Optional: measure inbound volume
@@ -426,6 +444,7 @@ export default function useWebRTCAudioSession(
       dataChannel.onopen = () => {
         // console.log("Data channel open");
         configureDataChannel(dataChannel);
+        flow.event("webrtc-openai", "dataChannel.open");
       };
       dataChannel.onmessage = handleDataChannelMessage;
 
@@ -435,6 +454,7 @@ export default function useWebRTCAudioSession(
       // Create offer & set local description
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
+      flow.event("webrtc-openai", "localDescription.set");
 
       // Send SDP offer to OpenAI Realtime
       const baseUrl = "https://api.openai.com/v1/realtime";
@@ -451,13 +471,17 @@ export default function useWebRTCAudioSession(
       // Set remote description
       const answerSdp = await response.text();
       await pc.setRemoteDescription({ type: "answer", sdp: answerSdp });
+      flow.step("webrtc-openai", 9, "remoteDescription.set");
 
       setIsSessionActive(true);
       setStatus("Session established successfully!");
+      flow.step("webrtc-openai", 10, "session.active");
     } catch (err) {
-      console.error("startSession error:", err);
-      setStatus(`Error: ${err}`);
+      const detail = typeof err === 'object' && err !== null ? { message: (err as Error).message } : { message: String(err) };
+      console.error("startSession error:", detail);
+      setStatus(`Error: ${detail.message}`);
       stopSession();
+      flow.event("webrtc-openai", "session.error", detail);
     }
   }
 
@@ -465,6 +489,7 @@ export default function useWebRTCAudioSession(
    * Stop the session & cleanup
    */
   function stopSession() {
+    flow.step("webrtc-openai", 11, "stopSession");
     if (dataChannelRef.current) {
       dataChannelRef.current.close();
       dataChannelRef.current = null;
@@ -497,6 +522,7 @@ export default function useWebRTCAudioSession(
     setStatus("Session stopped");
     setMsgs([]);
     setConversation([]);
+    flow.event("webrtc-openai", "cleanup.complete");
   }
 
   /**
@@ -514,13 +540,18 @@ export default function useWebRTCAudioSession(
    * Send a text message through the data channel
    */
   function sendTextMessage(text: string) {
-    if (!dataChannelRef.current || dataChannelRef.current.readyState !== "open") {
+    if (
+      !dataChannelRef.current ||
+      dataChannelRef.current.readyState !== "open"
+    ) {
       console.error("Data channel not ready");
+      flow.event("webrtc-openai", "text.send.fail");
       return;
     }
+    flow.event("webrtc-openai", "text.send", { length: text.length });
 
     const messageId = uuidv4();
-    
+
     // Add message to conversation immediately
     const newMessage: Conversation = {
       id: messageId,
@@ -530,8 +561,8 @@ export default function useWebRTCAudioSession(
       isFinal: true,
       status: "final",
     };
-    
-    setConversation(prev => [...prev, newMessage]);
+
+    setConversation((prev) => [...prev, newMessage]);
 
     // Send message through data channel
     const message = {
@@ -551,9 +582,11 @@ export default function useWebRTCAudioSession(
     const response = {
       type: "response.create",
     };
-    
+
     dataChannelRef.current.send(JSON.stringify(message));
-    dataChannelRef.current.send(JSON.stringify(response));}
+    dataChannelRef.current.send(JSON.stringify(response));
+    flow.event("webrtc-openai", "text.sent");
+  }
 
   // Cleanup on unmount
   useEffect(() => {
@@ -573,5 +606,8 @@ export default function useWebRTCAudioSession(
     currentVolume,
     conversation,
     sendTextMessage,
+    flowTimeline: flow
+      .getScope("webrtc-openai")
+      .map((e) => ({ step: e.step, label: e.label, ts: e.ts })),
   };
 }
