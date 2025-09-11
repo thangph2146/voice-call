@@ -2,8 +2,8 @@
 
 import React, { useEffect, useState } from "react"
 import { flow } from '@/lib/flow-tracker'
-import useWebRTCAudioSession from "@/hooks/use-webrtc-gemini"
-import { tools } from "@/lib/tools"
+// Switched from Gemini hook to Dify streaming hook
+import useWebRTCDifySession from "@/hooks/use-webrtc-dify"
 import { VoiceSelector } from "@/components/voice-select"
 import { BroadcastButton } from "@/components/broadcast-button"
 import { StatusDisplay } from "@/components/status"
@@ -18,7 +18,7 @@ const App: React.FC = () => {
   // FLOW SCOPE: app.page
   // ORDERED STEPS:
   // 1. mount -> component mounted
-  // 2. register.tools -> expose tool functions to Gemini runtime
+  // 2. register.tools -> expose tool functions (parity registry in Dify hook)
   // 3. (external) user starts session via BroadcastButton -> flows in webrtc hooks
   // 4. conversation.update -> conversation array length changed
   // 5. user.submitText (handled in TextInput) -> sendTextMessage -> Gemini hook
@@ -35,7 +35,7 @@ const App: React.FC = () => {
     msgs,
     conversation,
     sendTextMessage
-  } = useWebRTCAudioSession(voice, tools)
+  } = useWebRTCDifySession(voice)
 
   // Get all tools functions
   const toolsFunctions = useToolsFunctions();
@@ -70,7 +70,7 @@ const App: React.FC = () => {
         transition={{ duration: 0.5 }}
       >
         <motion.div 
-          className="w-full max-w-md bg-card text-card-foreground rounded-xl border shadow-sm p-6 space-y-4"
+          className="w-full max-w-md bg-card text-card-foreground shadow-sm p-6 space-y-4"
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.2, duration: 0.4 }}

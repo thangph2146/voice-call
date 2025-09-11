@@ -253,6 +253,60 @@ export function useWebRTCDifySession(voice: string): UseWebRTCDifySessionReturn 
   const synthRef = useRef<SpeechSynthesis | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const volumeIntervalRef = useRef<number | null>(null);
+  // Real-time volume ref for recognition gating
+  const currentVolumeRef = useRef(0);
+  // Track active session in ref for event handlers
+  const isSessionActiveRef = useRef(false);
+  // Status previous value for logging transitions
+  const lastStatusRef = useRef<string>("");
+  // Track consecutive no-speech errors to apply backoff
+  const consecutiveNoSpeechRef = useRef(0);
+  // Restart timer handle
+  const restartTimeoutRef = useRef<number | null>(null);
+  // Flag while TTS speaking
+  const ttsInProgressRef = useRef(false);
+  // Guard to avoid double-start attempts
+  const pendingRestartRef = useRef(false);
+
+  function setStatusLogged(next: string, source: string = "session") {
+    if (lastStatusRef.current !== next) {
+      logger.debug("STATUS_TRANSITION", { from: lastStatusRef.current, to: next }, source);
+      lastStatusRef.current = next;
+    }
+    setStatus(next);
+  }
+
+  function clearRestartTimer() {
+    if (restartTimeoutRef.current) {
+      clearTimeout(restartTimeoutRef.current);
+      restartTimeoutRef.current = null;
+    }
+    pendingRestartRef.current = false;
+  }
+
+  function scheduleRecognitionRestart(delay: number, reason: string) {
+    clearRestartTimer();
+    pendingRestartRef.current = true;
+    logger.debug("Scheduling recognition restart", { delay, reason }, "SpeechRecognition");
+    restartTimeoutRef.current = window.setTimeout(() => {
+      pendingRestartRef.current = false;
+      if (!isSessionActiveRef.current || ttsInProgressRef.current) return;
+      try {
+        recognitionRef.current?.start();
+      } catch (err) {
+        logger.error("Restart exception", { message: (err as Error).message }, "SpeechRecognition");
+      }
+    }, delay);
+  }
+  // Stable user identifier for Dify 'user' field (session scoped)
+  const userIdRef = useRef<string | null>(null);
+
+  function getUserId() {
+    if (!userIdRef.current) {
+      userIdRef.current = `user_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    }
+    return userIdRef.current;
+  }
 
   // Ephemeral user message (interim transcript)
   const ephemeralUserMessageIdRef = useRef<string | null>(null);
@@ -311,7 +365,9 @@ export function useWebRTCDifySession(voice: string): UseWebRTCDifySessionReturn 
         if (analyserRef.current) {
           analyserRef.current.getByteFrequencyData(dataArray);
           const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
-          setCurrentVolume(Math.sqrt(avg));
+          const vol = Math.sqrt(avg);
+          setCurrentVolume(vol);
+          currentVolumeRef.current = vol;
         }
       };
       volumeIntervalRef.current = window.setInterval(updateVolume, 100);
@@ -363,22 +419,82 @@ export function useWebRTCDifySession(voice: string): UseWebRTCDifySessionReturn 
 
     recognitionRef.current.onresult = (event: any) => {
       let final = ""; let interim = "";
+      const NOISE_VOLUME_THRESHOLD = 10; // adjustable gate
+      const NOISE_SINGLE_WORDS = ["phẩy", ",", "comma"]; // extend as needed
       for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript;
+        const alt = event.results[i][0];
+        const transcript: string = alt.transcript || "";
         if (event.results[i].isFinal) final += transcript; else interim += transcript;
       }
+      const vol = currentVolumeRef.current;
+
+      function isNoise(text: string) {
+        const trimmed = text.trim().toLowerCase();
+        if (!trimmed) return true;
+        // Single short token + low volume
+        if (trimmed.split(/\s+/).length === 1 && trimmed.length <= 5 && vol < NOISE_VOLUME_THRESHOLD && NOISE_SINGLE_WORDS.includes(trimmed)) return true;
+        // Very short (< 2 chars) under low volume
+        if (trimmed.length < 2 && vol < NOISE_VOLUME_THRESHOLD) return true;
+        return false;
+      }
+
       if (final) {
+        if (isNoise(final)) {
+          logger.debug("Filtered noise final", { text: final.trim(), vol }, "SpeechRecognition");
+          return; // ignore
+        }
         logger.logSpeechResult(final, true);
         handleUserSpeech(final);
       } else if (interim) {
+        if (isNoise(interim)) {
+          // silently ignore interim noise
+          return;
+        }
         logger.logSpeechResult(interim, false);
         getOrCreateEphemeralUserId();
         updateEphemeral({ text: interim, status: "speaking", isFinal: false });
       }
     };
-    recognitionRef.current.onstart = () => { setStatus("Đang nghe..."); getOrCreateEphemeralUserId(); };
-    recognitionRef.current.onend = () => { setStatus("Phiên hoạt động - Nhấn để nói"); };
-    recognitionRef.current.onerror = (e: any) => { setStatus(`Lỗi nhận dạng: ${e.error}`); };
+    recognitionRef.current.onstart = () => { 
+      setStatusLogged("Đang nghe...", "SpeechRecognition"); 
+      logger.logSpeechStart(); 
+      consecutiveNoSpeechRef.current = 0; // reset on successful start
+      getOrCreateEphemeralUserId(); 
+    };
+    recognitionRef.current.onend = () => { 
+      logger.info("Recognition ended", { active: isSessionActiveRef.current, tts: ttsInProgressRef.current }, "SpeechRecognition");
+      if (!isSessionActiveRef.current) {
+        setStatusLogged("Phiên hoạt động - Nhấn để nói", "SpeechRecognition");
+        return;
+      }
+      if (ttsInProgressRef.current) {
+        // Will be resumed by TTS onend
+        return;
+      }
+      if (pendingRestartRef.current) return; // already scheduled
+      // Normal cycling: brief delay to avoid tight loop
+      scheduleRecognitionRestart(300, "cycle_onend");
+    };
+    recognitionRef.current.onerror = (e: any) => { 
+      logger.logSpeechError(e.error); 
+      if (!isSessionActiveRef.current) return;
+      if (e.error === 'no-speech') {
+        consecutiveNoSpeechRef.current += 1;
+        const attempts = consecutiveNoSpeechRef.current;
+        const delay = Math.min(500 + (attempts - 1) * (attempts - 1) * 400, 6000); // quadratic backoff capped 6s
+        if (attempts >= 6) {
+          setStatusLogged("Không phát hiện giọng nói - tạm dừng (nhấn lại để tiếp tục)", "SpeechRecognition");
+          logger.warn("Auto-pause after repeated no-speech", { attempts }, "SpeechRecognition");
+          return; // stop auto restarts
+        } else {
+          setStatusLogged("Đang chờ bạn nói...", "SpeechRecognition");
+          scheduleRecognitionRestart(delay, `no_speech_${attempts}`);
+        }
+      } else {
+        setStatusLogged(`Lỗi nhận dạng: ${e.error}`, "SpeechRecognition");
+        scheduleRecognitionRestart(1000, "generic_error");
+      }
+    };
     flowStep(2, "initializeSpeech done");
   }
 
@@ -387,7 +503,8 @@ export function useWebRTCDifySession(voice: string): UseWebRTCDifySessionReturn 
     flowStep(5, "handleUserSpeech");
     updateEphemeral({ text, isFinal: true, status: "final" });
     clearEphemeral();
-    setStatus("Gửi tới Dify...");
+  setStatusLogged("Gửi tới Dify...", "session");
+  logger.info("Sending user query", { len: text.length }, "Dify");
 
     // Thêm placeholder assistant message để stream vào
     const assistantId = uuidv4();
@@ -400,11 +517,12 @@ export function useWebRTCDifySession(voice: string): UseWebRTCDifySessionReturn 
       status: "processing"
     }]);
 
-  const request: DifyChatRequest = {
+    const request: DifyChatRequest = {
       query: text,
       response_mode: "streaming",
       conversation_id: conversationId,
-      inputs: {}
+      user: getUserId(),
+      inputs: { source: "phone-call-demo" }
     };
 
     let accumulated = "";
@@ -430,12 +548,12 @@ export function useWebRTCDifySession(voice: string): UseWebRTCDifySessionReturn 
         }
         setMsgs(prev => [...prev, { type: "done", text: full, conversationId: newCid, metadata }]);
         speak(full);
-        setStatus("Hoàn thành");
+  setStatusLogged("Hoàn thành", "session");
         flowStep(6, "Dify response complete");
       },
       onError: (err) => {
         setConversation(prev => prev.map(m => m.id === assistantId ? { ...m, text: "(Lỗi: " + err.message + ")", isFinal: true } : m));
-        setStatus("Lỗi Dify");
+  setStatusLogged("Lỗi Dify", "session");
         logger.error("DIFY_STREAM_ERROR", { message: err.message });
         setMsgs(prev => [...prev, { type: "error", message: err.message }]);
       }
@@ -449,7 +567,19 @@ export function useWebRTCDifySession(voice: string): UseWebRTCDifySessionReturn 
     const v = getSelectedVoice();
     if (v) { utter.voice = v; utter.lang = v.lang; utter.pitch = v.name.toLowerCase().includes("female") ? 1.1 : 1.0; }
     else { utter.lang = "vi-VN"; utter.pitch = 1.05; }
-    utter.rate = 0.9; utter.volume = 1;
+  // Increased speaking rate for faster TTS response (previously 0.9)
+  utter.rate = 1.2; 
+  utter.volume = 1;
+    // Pause recognition while speaking to avoid capturing TTS audio
+    ttsInProgressRef.current = true;
+    clearRestartTimer();
+    try { recognitionRef.current?.stop(); logger.debug("Recognition paused for TTS", null, "SpeechRecognition"); } catch {}
+    utter.onend = () => {
+      logger.debug("TTS finished", null, "TTS");
+      ttsInProgressRef.current = false;
+      if (isSessionActiveRef.current) scheduleRecognitionRestart(150, "tts_end");
+    };
+    utter.onerror = () => { ttsInProgressRef.current = false; if (isSessionActiveRef.current) scheduleRecognitionRestart(250, "tts_error"); };
     synthRef.current.speak(utter);
   }
 
@@ -465,18 +595,20 @@ export function useWebRTCDifySession(voice: string): UseWebRTCDifySessionReturn 
   async function startSession() {
     try {
       flowStep(1, "startSession");
-      setStatus("Yêu cầu mic...");
+      setStatusLogged("Yêu cầu mic...", "session");
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       audioStreamRef.current = stream;
       setupAudioVisualization(stream);
-      setStatus("Khởi tạo giọng nói...");
+      setStatusLogged("Khởi tạo giọng nói...", "session");
       await initializeSpeech();
       recognitionRef.current?.start();
       setIsSessionActive(true);
-      setStatus("Phiên hoạt động - Nhấn để nói");
+      isSessionActiveRef.current = true;
+      setStatusLogged("Phiên hoạt động - Nhấn để nói", "session");
+      logger.info("Session started", { user: getUserId() }, "Session");
     } catch (err) {
       logger.error("START_SESSION_ERROR", err instanceof Error ? { message: err.message } : { detail: String(err) });
-      setStatus("Lỗi khởi tạo phiên");
+      setStatusLogged("Lỗi khởi tạo phiên", "session");
       stopSession();
     }
   }
@@ -490,8 +622,13 @@ export function useWebRTCDifySession(voice: string): UseWebRTCDifySessionReturn 
     analyserRef.current = null;
     ephemeralUserMessageIdRef.current = null;
     setIsSessionActive(false);
+    isSessionActiveRef.current = false;
+  clearRestartTimer();
+  ttsInProgressRef.current = false;
+  consecutiveNoSpeechRef.current = 0;
     setCurrentVolume(0);
-    setStatus("Đã dừng phiên");
+    setStatusLogged("Đã dừng phiên", "session");
+    logger.info("Session stopped", null, "Session");
   }
   function handleStartStopClick() { isSessionActive ? stopSession() : startSession(); }
 
