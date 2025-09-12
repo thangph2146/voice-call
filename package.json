@@ -62,7 +62,8 @@
     "tailwindcss-animate": "^1.0.7",
     "uuid": "^11.0.3",
     "vaul": "^1.1.2",
-    "zod": "^3.24.1"
+    "zod": "^3.24.1",
+    "@mediapipe/face_mesh": "^0.4.1633559619"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

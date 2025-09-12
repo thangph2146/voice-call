@@ -99,48 +99,55 @@ export function MessageControls({ conversation, msgs }: { conversation: Conversa
     <div className="space-y-2">
       <div className="flex justify-between items-center">
         <h3 className="text-sm font-medium">{t('messageControls.logs')}</h3>
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button variant="outline" size="sm">
-              {t('messageControls.view')}
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-full p-4 mx-auto overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>{t('messageControls.logs')}</DialogTitle>
-            </DialogHeader>
-            <FilterControls
-              typeFilter={typeFilter}
-              setTypeFilter={setTypeFilter}
-              searchQuery={searchQuery}
-              setSearchQuery={setSearchQuery}
-              messageTypes={messageTypes}
-              messages={filteredMsgs}
-            />
-            <div className="mt-4">
-              <ScrollArea className="h-[80vh]">
-              <Table className="max-w-full">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>{t('messageControls.type')}</TableHead>
-                    <TableHead>{t('messageControls.content')}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredMsgs.map((msg, i) => (
-                    <TableRow key={i}>
-                      <TableCell className="font-medium">{msg.type}</TableCell>
-                      <TableCell className="font-mono text-sm whitespace-pre-wrap break-words max-w-full]">
-                        {JSON.stringify(msg, null, 2)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  </TableBody>
-                </Table>
-              </ScrollArea>
-            </div>
-          </DialogContent>
-        </Dialog>
+        <div className="flex gap-2">
+          <span className="text-xs text-muted-foreground">
+            {conversation.length} messages
+          </span>
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm">
+                {t('messageControls.view')}
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-4xl max-h-[80vh] p-4 mx-auto overflow-hidden">
+              <DialogHeader>
+                <DialogTitle>{t('messageControls.logs')}</DialogTitle>
+              </DialogHeader>
+              <FilterControls
+                typeFilter={typeFilter}
+                setTypeFilter={setTypeFilter}
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
+                messageTypes={messageTypes}
+                messages={filteredMsgs}
+              />
+              <div className="mt-4 flex-1 overflow-hidden">
+                <ScrollArea className="h-[60vh]">
+                  <Table className="max-w-full">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-24">{t('messageControls.type')}</TableHead>
+                        <TableHead>{t('messageControls.content')}</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredMsgs.map((msg, i) => (
+                        <TableRow key={i}>
+                          <TableCell className="font-medium text-xs">{msg.type}</TableCell>
+                          <TableCell className="font-mono text-sm whitespace-pre-wrap break-words max-w-0">
+                            <div className="max-h-32 overflow-y-auto">
+                              {JSON.stringify(msg, null, 2)}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <Transcriber conversation={conversation.slice(-1)} />

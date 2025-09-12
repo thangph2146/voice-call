@@ -5,7 +5,19 @@ import { v4 as uuidv4 } from "uuid"; // Unique IDs for conversation messages
 import { Conversation } from "@/lib/conversations"; // Domain model
 import { useTranslations } from "@/components/translations-context"; // i18n provider
 import { logger } from "@/lib/logger"; // Structured logging helper
-import { GoogleGenerativeAI } from "@google/generative-ai"; // Gemini provider SDK
+// Lazy load Gemini SDK only if present to avoid hard build dependency
+let GoogleGenerativeAI: any;
+async function loadGemini() {
+  if (GoogleGenerativeAI) return GoogleGenerativeAI;
+  try {
+    // @ts-ignore - optional dependency
+    const mod = await import("@google/generative-ai");
+    GoogleGenerativeAI = mod.GoogleGenerativeAI;
+  } catch (err) {
+    throw new Error("Gemini SDK not installed. Install @google/generative-ai to enable this hook.");
+  }
+  return GoogleGenerativeAI;
+}
 import { flow } from "@/lib/flow-tracker"; // Timeline instrumentation
 
 /**
@@ -112,11 +124,17 @@ export default function useWebRTCAudioSession(
 ): UseWebRTCAudioSessionReturn {
   const { t, locale } = useTranslations();
 
-  // Initialize Gemini AI
-  const genAI = new GoogleGenerativeAI(
-    process.env.NEXT_PUBLIC_GEMINI_API_KEY || ""
-  );
-  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+  // Lazy Gemini model (only if dependency installed and key available)
+  const modelRef = useRef<any>(null);
+  async function getModel() {
+    if (modelRef.current) return modelRef.current;
+    const Cls = await loadGemini();
+    const key = process.env.NEXT_PUBLIC_GEMINI_API_KEY || "";
+    if (!key) throw new Error("Missing NEXT_PUBLIC_GEMINI_API_KEY");
+    const genAI = new Cls(key);
+    modelRef.current = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    return modelRef.current;
+  }
 
   // Connection/session states
   const [status, setStatus] = useState("");
@@ -496,7 +514,8 @@ export default function useWebRTCAudioSession(
 
       logger.debug("Sending prompt to Gemini", { prompt }, "WebRTC");
 
-      const result = await model.generateContent(prompt);
+  const model = await getModel();
+  const result = await model.generateContent(prompt);
       const aiText = result.response.text();
       flowStep(6, "Gemini response received");
 
@@ -734,7 +753,8 @@ export default function useWebRTCAudioSession(
 
       logger.debug("Sending text prompt to Gemini", { prompt }, "WebRTC");
 
-      const result = await model.generateContent(prompt);
+  const model = await getModel();
+  const result = await model.generateContent(prompt);
       const aiText = result.response.text();
       flowStep(6, "Gemini response (text message) received");
 
