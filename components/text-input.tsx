@@ -5,7 +5,6 @@ import { flow } from "@/lib/flow-tracker"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Send, Loader2 } from "lucide-react"
-import { useTranslations } from "@/components/translations-context"
 
 interface TextInputProps {
   onSubmit: (text: string) => void
@@ -16,7 +15,6 @@ interface TextInputProps {
 // FLOW SCOPE: ui.textInput
 // ORDER: 1:render, 2:change(text), 3:submit
 export function TextInput({ onSubmit, disabled = false, isLoading = false }: TextInputProps) {
-  const { t } = useTranslations()
   const [text, setText] = useState("")
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -40,7 +38,7 @@ export function TextInput({ onSubmit, disabled = false, isLoading = false }: Tex
     <form onSubmit={handleSubmit} className="flex w-full gap-2">
       <Input
         type="text"
-        placeholder={t('textInput.placeholder') || "Type your message..."}
+        placeholder={"Type your message..."}
         value={text}
         onChange={(e) => { const v = e.target.value; setText(v); if (v) flow.event('ui.textInput', 'change', { length: v.length }); }}
         onKeyDown={handleKeyDown}

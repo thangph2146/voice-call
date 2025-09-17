@@ -5,7 +5,6 @@ import { Camera, CameraOff, Mic, Eye } from "lucide-react";
 interface VisualSpeakingIndicatorProps {
   isReady: boolean;
   isSpeaking: boolean;
-  mouthRatio: number;
   baseline?: number | null;
   autoStarted: boolean;
   stream?: MediaStream | null;
@@ -14,7 +13,6 @@ interface VisualSpeakingIndicatorProps {
 export const VisualSpeakingIndicator: React.FC<VisualSpeakingIndicatorProps> = ({
   isReady,
   isSpeaking,
-  mouthRatio,
   baseline,
   autoStarted,
   stream
@@ -58,7 +56,7 @@ export const VisualSpeakingIndicator: React.FC<VisualSpeakingIndicatorProps> = (
       {/* Video Preview */}
       {stream && (
         <div className="relative rounded-lg overflow-hidden border-2 border-border bg-black shadow-lg">
-          <video ref={videoRef} autoPlay playsInline muted className="block w-full h-48 object-cover" />
+          <video ref={videoRef} autoPlay playsInline muted className="block w-full h-96 object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
           
           {/* Status Overlays */}
@@ -85,34 +83,12 @@ export const VisualSpeakingIndicator: React.FC<VisualSpeakingIndicatorProps> = (
           </div>
         </div>
         
-        <div className="bg-muted/30 rounded-lg p-3">
-          <div className="text-xs text-muted-foreground font-medium mb-1">Mouth Ratio</div>
-          <div className="text-sm font-mono font-bold">{mouthRatio.toFixed(3)}</div>
-        </div>
-        
         {hasBaseline && (
-          <>
             <div className="bg-muted/30 rounded-lg p-3">
               <div className="text-xs text-muted-foreground font-medium mb-1">Baseline</div>
               <div className="text-sm font-mono font-bold">{baseline.toFixed(3)}</div>
             </div>
-            
-            <div className="bg-muted/30 rounded-lg p-3">
-              <div className="text-xs text-muted-foreground font-medium mb-1">Deviation</div>
-              <div className={`text-sm font-mono font-bold ${mouthRatio > baseline * 1.3 ? 'text-green-600' : 'text-muted-foreground'}`}>
-                {((mouthRatio / baseline - 1) * 100).toFixed(1)}%
-              </div>
-            </div>
-          </>
         )}
-      </div>
-
-      {/* Description */}
-      <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 border border-blue-200 dark:border-blue-800">
-        <p className="text-xs text-blue-700 dark:text-blue-300 leading-relaxed">
-          💡 <strong>AI phân tích chuyển động môi:</strong> Hệ thống theo dõi tỷ lệ mở miệng để phát hiện khi bạn nói. 
-          Khi phát hiện lần đầu, sẽ tự động bắt đầu ghi âm cuộc trò chuyện.
-        </p>
       </div>
     </div>
   );
