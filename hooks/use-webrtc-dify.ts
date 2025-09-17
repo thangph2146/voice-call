@@ -263,9 +263,10 @@ async function streamDify(
 // ====== Main Hook ======
 export function useWebRTCDifySession(
   voice: string,
-  options?: { fast?: boolean }
+  options?: { fast?: boolean; camSpeaking?: boolean }
 ): UseWebRTCDifySessionReturn {
   const fast = options?.fast ?? true;
+  const camSpeaking = options?.camSpeaking ?? true; // Default to true for backward compatibility
   // Core state
   const [status, setStatus] = useState("");
   const [isSessionActive, setIsSessionActive] = useState(false);
@@ -794,11 +795,10 @@ export function useWebRTCDifySession(
       setupAudioVisualization(stream);
       setStatusLogged("Khởi tạo giọng nói...", "session");
       await initializeSpeech();
-  recognitionRef.current?.start();
-  recognitionActiveRef.current = true;
+      // Don't start recognition immediately - wait for camera speaking state
       setIsSessionActive(true);
       isSessionActiveRef.current = true;
-      setStatusLogged("Phiên hoạt động - Nhấn để nói", "session");
+      setStatusLogged("Phiên hoạt động - Chờ camera phát hiện nói", "session");
       logger.info("Session started", { user: getUserId() }, "Session");
     } catch (err) {
       logger.error(
@@ -846,6 +846,35 @@ export function useWebRTCDifySession(
   function handleStartStopClick() {
     isSessionActive ? stopSession() : startSession();
   }
+
+  // Control SpeechRecognition based on camera speaking state
+  useEffect(() => {
+    if (!isSessionActive || !recognitionRef.current) return;
+    
+    if (camSpeaking) {
+      // Camera is speaking - start recognition if not already active
+      if (!recognitionActiveRef.current) {
+        try {
+          recognitionRef.current.start();
+          recognitionActiveRef.current = true;
+          logger.debug("Recognition started due to camera speaking", null, "SpeechRecognition");
+        } catch (err) {
+          logger.warn("Failed to start recognition on camera speaking", { error: err }, "SpeechRecognition");
+        }
+      }
+    } else {
+      // Camera is silent - stop recognition if active
+      if (recognitionActiveRef.current) {
+        try {
+          recognitionRef.current.stop();
+          recognitionActiveRef.current = false;
+          logger.debug("Recognition stopped due to camera silent", null, "SpeechRecognition");
+        } catch (err) {
+          logger.warn("Failed to stop recognition on camera silent", { error: err }, "SpeechRecognition");
+        }
+      }
+    }
+  }, [camSpeaking, isSessionActive]);
 
   useEffect(() => () => stopSession(), []);
 

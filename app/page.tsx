@@ -27,19 +27,6 @@ const App: React.FC = () => {
   // State for voice selection
   const [voice, setVoice] = useState("ash");
 
-  // WebRTC Audio Session Hook
-  const {
-    status,
-    isSessionActive,
-    registerFunction,
-    handleStartStopClick,
-    startSession,
-    stopSession,
-    msgs,
-    conversation,
-    sendTextMessage,
-  } = useWebRTCDifySession(voice);
-
   // Visual speech detection (single face)
   const {
     isReady: camReady,
@@ -55,6 +42,19 @@ const App: React.FC = () => {
     debug: false,
     collectEvents: true,
   });
+
+  // WebRTC Audio Session Hook
+  const {
+    status,
+    isSessionActive,
+    registerFunction,
+    handleStartStopClick,
+    startSession,
+    stopSession,
+    msgs,
+    conversation,
+    sendTextMessage,
+  } = useWebRTCDifySession(voice, { camSpeaking });
 
   const [autoStarted, setAutoStarted] = useState(false);
   const lastSpeakingRef = React.useRef<number>(Date.now());
